@@ -8,6 +8,13 @@ from config import CONFIG_AUTH_CLIENT, CONFIG_SEARCH_CLIENT
 from core.authentication import AuthError
 from error import error_response
 
+# Dictionary to maintain API mappings of type str, str
+customers: dict[str, list[str]] = {
+    "63aba3c3-130c-43e8-b9ec-242c8c0bff84": ["puurbaarlo"],
+    "1a62f099-6824-4a1e-a1ec-ab7df7aed7f1": ["melderslo"],
+    "adb0eba3-4d47-4ab3-b446-eabac9bcca4d": ["phact-hrm"]
+}
+
 
 def authenticated_path(route_fn: Callable[[str, dict[str, Any]], Any]):
     """
@@ -48,10 +55,24 @@ def authenticated(route_fn: _C) -> _C:
     @wraps(route_fn)
     async def auth_handler(*args, **kwargs):
         auth_helper = current_app.config[CONFIG_AUTH_CLIENT]
-        try:
-            auth_claims = await auth_helper.get_auth_claims_if_enabled(request.headers)
-        except AuthError:
+
+        subscriptionKey = request.headers.get("X-Subscription-Key")
+        if subscriptionKey:
+            categories = customers.get(subscriptionKey)
+            if categories:
+                # If the subscription key is valid, we can return the claims
+                auth_claims = {"oid": subscriptionKey, "groups": categories}
+            else:
+                # If the subscription key is invalid, we return a 403
+                logging.error("Invalid subscription key: %s", subscriptionKey)
+                abort(403)
+        else:
             abort(403)
+
+        # try:
+        #     auth_claims = await auth_helper.get_auth_claims_if_enabled(request.headers)
+        # except AuthError:
+        #     abort(403)
 
         return await route_fn(auth_claims, *args, **kwargs)
 

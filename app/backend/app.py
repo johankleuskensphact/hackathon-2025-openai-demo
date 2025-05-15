@@ -100,6 +100,8 @@ from prepdocs import (
 from prepdocslib.filestrategy import UploadUserFileStrategy
 from prepdocslib.listfilestrategy import File
 
+from decorators import customers
+
 bp = Blueprint("routes", __name__, static_folder="static")
 # Fix Windows registry issue with mimetypes
 mimetypes.add_type("application/javascript", ".js")
@@ -220,6 +222,22 @@ async def chat(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
+
+    overrides = context.get("overrides", {})
+
+    if "include_category" not in overrides:
+        abort(403)
+
+    includeCategory = overrides.get("include_category")
+
+    subscriptionKey = auth_claims.get("oid")
+    if not subscriptionKey:
+       abort(403)
+       
+    categories = customers.get(subscriptionKey)
+    if includeCategory not in categories:
+        abort(403)
+
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
         approach: Approach
